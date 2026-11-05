@@ -28,18 +28,22 @@ function preload(){
 }
 
 
-// 摄像头画面的尺寸。手部识别和风格处理都在这个尺寸上做，最后再整体放大铺满屏幕
-const VIDEO_W = 640;
-const VIDEO_H = 480;
+// 摄像头画面的尺寸。手部识别和风格处理都在这个尺寸上做，最后再整体放大铺满屏幕。
+// 用摄像头实际给的尺寸：电脑一般是横的 640×480，手机竖着拿时是竖的（如 480×640），
+// 如果强行当成 640×480，手指坐标和画面会对不上，框就画不出来。
+let VIDEO_W = 640;
+let VIDEO_H = 480;
 
 function setup() {
 	pixelDensity(1); // 保证像素数组和画面一一对应
 	createCanvas(windowWidth, windowHeight); // 画布铺满整个窗口
 
 	//Vai buscar o video da webcam e esconder
-	// facingMode: 'user' → 手机上用前置摄像头
-	video = createCapture({ video: { facingMode: 'user' }, audio: false });
-	video.size(VIDEO_W, VIDEO_H);
+	// facingMode: 'user' → 手机上用前置摄像头；ideal 尺寸让手机别给太大的画面，免得卡
+	video = createCapture({
+		video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+		audio: false,
+	});
 	video.hide();
 
 	//vai começar a detectar os keypoints da mãos
@@ -52,15 +56,46 @@ function windowResized() {
 }
 
 
+// 跟上摄像头的真实尺寸（手机横竖屏切换时也会变）
+function syncVideoSize() {
+	const vw = video.elt.videoWidth, vh = video.elt.videoHeight;
+	if (vw && vh && (vw !== VIDEO_W || vh !== VIDEO_H)) {
+		VIDEO_W = vw;
+		VIDEO_H = vh;
+		video.size(vw, vh);
+	}
+}
+
 function draw() {
 	background(0);
+	syncVideoSize();
 
-	// 把 640×480 的画面等比放大到盖满屏幕（多出来的边会被裁掉，不留黑边）
+	// 把摄像头画面等比放大到盖满屏幕（多出来的边会被裁掉，不留黑边）
 	const s = Math.max(width / VIDEO_W, height / VIDEO_H);
 	push();
 	translate((width - VIDEO_W * s) / 2, (height - VIDEO_H * s) / 2);
 	scale(s);
 	drawScene();
+	pop();
+
+	drawHint();
+}
+
+// 屏幕底部的提示：没框出来时告诉用户现在识别到几只手
+function drawHint() {
+	if (isOpen) return;
+	let msg;
+	if (hands.length === 0) msg = '没有识别到手 · No hands detected';
+	else if (hands.length === 1) msg = '识别到 1 只手，请把两只手都放进画面 · 1 hand, show both hands';
+	else msg = '两只手都识别到了，把拇指和食指张开成框 · Open your fingers into a frame';
+
+	push();
+	textAlign(CENTER, BOTTOM);
+	textSize(Math.max(13, Math.min(18, width / 30)));
+	fill(255);
+	stroke(0);
+	strokeWeight(3);
+	text(msg, width / 2, height - 20);
 	pop();
 }
 
