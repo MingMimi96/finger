@@ -28,25 +28,46 @@ function preload(){
 }
 
 
+// 摄像头画面的尺寸。手部识别和风格处理都在这个尺寸上做，最后再整体放大铺满屏幕
+const VIDEO_W = 640;
+const VIDEO_H = 480;
+
 function setup() {
 	pixelDensity(1); // 保证像素数组和画面一一对应
-	let canvas = createCanvas(640, 480);
-
-	let x = (windowWidth - width) / 2;
-	canvas.position(x, 0);
+	createCanvas(windowWidth, windowHeight); // 画布铺满整个窗口
 
 	//Vai buscar o video da webcam e esconder
-	video = createCapture(VIDEO);
-	video.size(640, 480);
+	// facingMode: 'user' → 手机上用前置摄像头
+	video = createCapture({ video: { facingMode: 'user' }, audio: false });
+	video.size(VIDEO_W, VIDEO_H);
 	video.hide();
 
 	//vai começar a detectar os keypoints da mãos
 	handPose.detectStart(video, gotHands);
 }
 
+// 窗口大小变化（拖动窗口、手机横竖屏切换）时，画布跟着变
+function windowResized() {
+	resizeCanvas(windowWidth, windowHeight);
+}
+
 
 function draw() {
-	image(video, 0, 0, width, height);
+	background(0);
+
+	// 把 640×480 的画面等比放大到盖满屏幕（多出来的边会被裁掉，不留黑边）
+	const s = Math.max(width / VIDEO_W, height / VIDEO_H);
+	push();
+	translate((width - VIDEO_W * s) / 2, (height - VIDEO_H * s) / 2);
+	scale(s);
+	drawScene();
+	pop();
+}
+
+
+// 在 640×480 的坐标系里画：摄像头画面 + 手指框里的风格
+function drawScene() {
+	image(video, 0, 0, VIDEO_W, VIDEO_H);
 
 	if (hands.length < 2) {
 		missingFrames++;
@@ -66,11 +87,11 @@ function draw() {
 	let pontosX = [polegar1.x, indicador1.x, indicador2.x, polegar2.x];
 	let pontosY = [polegar1.y, indicador1.y, indicador2.y, polegar2.y];
 
-	// 取整并限制在画布内
+	// 取整并限制在摄像头画面内
 	let minX = max(0, floor(min(pontosX)));
-	let maxX = min(width, ceil(max(pontosX)));
+	let maxX = min(VIDEO_W, ceil(max(pontosX)));
 	let minY = max(0, floor(min(pontosY)));
-	let maxY = min(height, ceil(max(pontosY)));
+	let maxY = min(VIDEO_H, ceil(max(pontosY)));
 
 	let largura = maxX - minX;
 	let altura = maxY - minY;
